@@ -16,7 +16,7 @@ const int intervalsPerNote[] = {
 
 const int numNotes = 153;
 
-const int notes[][2] = {
+const uint16_t notes[][2] = {
   {NOTE_E4, intervalsPerNote[8]},
   {NOTE_G4, intervalsPerNote[8]},
   {NOTE_B4, intervalsPerNote[8]},

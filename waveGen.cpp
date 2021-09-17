@@ -1,4 +1,5 @@
 #include "waveGen.h"
+#include <Arduino_DebugUtils.h>
 
 void TCA0_init(void) {
     /* set waveform output on PORT A */
@@ -20,15 +21,17 @@ void initializeWaveGen() {
     TCA0_init();
 }
 
-const uint16_t TICKS_PER_HALF_SECOND = 125000;
+const uint32_t TICKS_PER_HALF_SECOND = 125000;
 
-void startWave(int frequency) {
+void startWave(uint16_t frequency) {
     uint16_t freq = TICKS_PER_HALF_SECOND / frequency;
+    Debug.print(DBG_INFO, "passed freq %i setting freq %i", frequency, freq);
     TCA0.SINGLE.CMP0BUF = freq;
     TCA0.SINGLE.CMP1BUF = freq;
     TCA0.SINGLE.CTRLB = TCA_SINGLE_CMP0EN_bm
                       | TCA_SINGLE_CMP1EN_bm
                       | TCA_SINGLE_WGMODE_FRQ_gc;
+    Debug.print(DBG_INFO, "CTLA "BYTE_TO_BINARY_PATTERN, BYTE_TO_BINARY(TCA0.SINGLE.CTRLA));
 }
 
 void stopWave() {

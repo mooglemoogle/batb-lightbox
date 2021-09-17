@@ -15,7 +15,7 @@
   (byte & 0x01 ? '1' : '0') 
 
 void initializeWaveGen();
-void startWave(int);
+void startWave(uint16_t);
 void stopWave();
 
 #endif WAVE_GEN_H_DEFINED

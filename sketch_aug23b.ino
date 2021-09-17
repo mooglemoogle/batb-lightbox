@@ -84,8 +84,6 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(commonPin), pressInterrupt, FALLING);
 
   initializeWaveGen();
-
-  startWave(440);
 }
 
 void loop() {
