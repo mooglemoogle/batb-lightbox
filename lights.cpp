@@ -1,6 +1,7 @@
 #include "lights.h"
 #include <Adafruit_NeoPixel.h>
 #include <elapsedMillis.h>
+// #include <Arduino_DebugUtils.h>
 
 const int TIME_PER_PATTERN = 5;
 
@@ -26,12 +27,8 @@ LightPattern nextPattern;
 void initializeLights() {
     strip.begin();
     for (int i = 0; i < LED_COUNT; i++) {
-        LightHSV curLight = currentLightHSV[i];
-        curLight.hue = 0; curLight.sat = 1.0; curLight.val = 1.0;
-        uint32_t rgbcolor = strip.ColorHSV(curLight.hue * 65535, curLight.sat * 255, curLight.val * 255);
-        strip.setPixelColor(i, rgbcolor);
-        LightHSV transLight = transitionLightHSV[i];
-        transLight.hue = 0; transLight.sat = 0; transLight.val = 0;
+        currentLightHSV[i].hue = 0.0; currentLightHSV[i].sat = 0.0; currentLightHSV[i].val = 0.0;
+        transitionLightHSV[i].hue = 0.0; transitionLightHSV[i].sat = 0.0; transitionLightHSV[i].val = 0.0;
     }
     strip.show();
 }
@@ -45,24 +42,25 @@ void initializeRainbow();
 void updateRainbow();
 
 void startLights(LightProgram program) {
-    // currentProgram = ProgramTransition;
-    // nextProgram = program;
-    currentProgram = program;
-    switch(currentProgram) {
+    currentProgram = ProgramTransition;
+    nextProgram = program;
+    switch(nextProgram) {
     case LightsOff:
         initializeLightsOff();
         break;
     case WithSong:
-        // nextPattern = Rainbow;
-        currentPattern = Rainbow;
+        nextPattern = Rainbow;
+        // currentPattern = Rainbow;
         initializeRainbow();
         break;
     case Standalone:
-        // nextPattern = RainbowChase;
-        currentPattern = RainbowChase;
+        nextPattern = RainbowChase;
+        // currentPattern = RainbowChase;
         initializeRainbowChase();
         break;
     }
+    // Debug.print(DBG_INFO, "curProg %u curPat %u", currentProgram, currentPattern);
+    // Debug.print(DBG_INFO, "hue %u sat %u val %u", currentLightHSV[8].hue * 65535, currentLightHSV[8].sat * 255, currentLightHSV[8].val * 255);
     sinceChange = 0;
     sinceUpdate = 0;
     transitionTimer = 0;
@@ -83,6 +81,7 @@ void updateLights() {
                 pattern = RainbowChase;
             }
             currentPattern = PatternTransition;
+            transitionTimer = 0;
             nextPattern = static_cast<LightPattern>(pattern);
             switch(nextPattern) {
             
@@ -106,28 +105,31 @@ void updateLights() {
 }
 
 void applyTransitionLights() {
+    // Debug.print(DBG_INFO, "transition timer %d", static_cast<long>(transitionTimer));
     if (transitionTimer > transitionTime) {
         for (int i = 0; i < LED_COUNT; i++) {
-            LightHSV curLight = currentLightHSV[i];
-            LightHSV transLight = transitionLightHSV[i];
-            curLight.hue = transLight.hue;
-            curLight.sat = transLight.sat;
-            curLight.val = transLight.val;
+            currentLightHSV[i].hue = transitionLightHSV[i].hue;
+            currentLightHSV[i].sat = transitionLightHSV[i].sat;
+            currentLightHSV[i].val = transitionLightHSV[i].val;
+            uint32_t rgbcolor = strip.ColorHSV(currentLightHSV[i].hue * 65535, currentLightHSV[i].sat * 255, currentLightHSV[i].val * 255);
+            strip.setPixelColor(i, rgbcolor);
         }
         currentProgram = nextProgram;
         currentPattern = nextPattern;
         sinceChange = 0;
         return;
     }
-    double timePercent = transitionTimer / transitionTime;
+    double timePercent = static_cast<double>(transitionTimer - 0) / static_cast<double>(transitionTime);
     double valuePercent = (timePercent * timePercent * (3.0 - 2.0 * timePercent));
+    // Debug.print(DBG_INFO, "timePercent %d valuePercent %d", static_cast<long>(timePercent * 100), static_cast<long>(valuePercent * 100));
 
     for (int i = 0; i < LED_COUNT; i++) {
-        LightHSV lastLight = currentLightHSV[i];
-        LightHSV nextLight = transitionLightHSV[i];
-        double hue = lastLight.hue + valuePercent * (nextLight.hue - lastLight.hue);
-        double sat = lastLight.sat + valuePercent * (nextLight.sat - lastLight.sat);
-        double val = lastLight.val + valuePercent * (nextLight.val - lastLight.val);
+        double hue = currentLightHSV[i].hue + valuePercent * (transitionLightHSV[i].hue - currentLightHSV[i].hue);
+        double sat = currentLightHSV[i].sat + valuePercent * (transitionLightHSV[i].sat - currentLightHSV[i].sat);
+        double val = currentLightHSV[i].val + valuePercent * (transitionLightHSV[i].val - currentLightHSV[i].val);
+        // if (i == 8) {
+        //     Debug.print(DBG_INFO, "hue %d sat %d val %d", static_cast<long>(hue * 65535), static_cast<long>(sat * 255), static_cast<long>(val * 255));
+        // }
         uint32_t rgbcolor = strip.ColorHSV(hue * 65535, sat * 255, val * 255);
         strip.setPixelColor(i, rgbcolor);
     }
@@ -141,9 +143,11 @@ void applyNormalLights() {
     default:
         updateRainbowChase(); break;
     }
+
+    // Debug.print(DBG_INFO, "hue %u sat %u val %u", currentLightHSV[8].hue * 65535, currentLightHSV[8].sat * 255, currentLightHSV[8].val * 255);
+    
     for (int i = 0; i < LED_COUNT; i++) {
-        LightHSV light = currentLightHSV[i];
-        uint32_t rgbcolor = strip.ColorHSV(light.hue * 65535, light.sat * 255, light.val * 255);
+        uint32_t rgbcolor = strip.ColorHSV(currentLightHSV[i].hue * 65535, currentLightHSV[i].sat * 255, currentLightHSV[i].val * 255);
         strip.setPixelColor(i, rgbcolor);
     }
 }
@@ -151,29 +155,27 @@ void applyNormalLights() {
 void initializeLightsOff() {
     for (int i = 0; i < LED_COUNT; i++) {
         // LightHSV light = transitionLightHSV[i];
-        LightHSV light = currentLightHSV[i];
-        light.sat = 0.0;
-        light.val = 0.0;
+        transitionLightHSV[i].hue = currentLightHSV[i].hue;
+        transitionLightHSV[i].sat = 0.0;
+        transitionLightHSV[i].val = 0.0;
     }
 }
 
 void initializeRainbowChase() {
     for (int i = 0; i < LED_COUNT; i++) {
         // LightHSV light = transitionLightHSV[i];
-        LightHSV light = currentLightHSV[i];
-        light.hue = (1.0 / LED_COUNT) * i;
-        light.sat = 1.0;
-        light.val = 1.0;
+        transitionLightHSV[i].hue = (1.0 / LED_COUNT) * i;
+        transitionLightHSV[i].sat = 1.0;
+        transitionLightHSV[i].val = 1.0;
     }
 }
 const float rainbowChaseMovePerSecond = 0.2;
 void updateRainbowChase() {
     double moveAmount = rainbowChaseMovePerSecond / 1000.0 * sinceUpdate;
     for (int i = 0; i < LED_COUNT; i++) {
-        LightHSV light = currentLightHSV[i];
-        light.hue += moveAmount;
-        if (light.hue > 1.0) {
-            light.hue -= 1.0;
+        currentLightHSV[i].hue += moveAmount;
+        if (currentLightHSV[i].hue > 1.0) {
+            currentLightHSV[i].hue -= 1.0;
         }
     }
 }
@@ -181,20 +183,18 @@ void updateRainbowChase() {
 void initializeRainbow() {
     for (int i = 0; i < LED_COUNT; i++) {
         // LightHSV light = transitionLightHSV[i];
-        LightHSV light = currentLightHSV[i];
-        light.hue = 0.0;
-        light.sat = 1.0;
-        light.val = 1.0;
+        transitionLightHSV[i].hue = 0.0;
+        transitionLightHSV[i].sat = 1.0;
+        transitionLightHSV[i].val = 1.0;
     }
 }
 const float rainbowMovePerSecond = 0.05;
 void updateRainbow() {
     double moveAmount = rainbowMovePerSecond / 1000.0 * sinceUpdate;
     for (int i = 0; i < LED_COUNT; i++) {
-        LightHSV light = currentLightHSV[i];
-        light.hue += moveAmount;
-        if (light.hue > 1.0) {
-            light.hue -= 1.0;
+        currentLightHSV[i].hue += moveAmount;
+        if (currentLightHSV[i].hue > 1.0) {
+            currentLightHSV[i].hue -= 1.0;
         }
     }
 }

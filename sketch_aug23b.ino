@@ -5,7 +5,7 @@
 #include <elapsedMillis.h>
 #include <Arduino.h>
 
-#include <Arduino_DebugUtils.h>
+// #include <Arduino_DebugUtils.h>
 
 #include "waveGen.h"
 
@@ -76,8 +76,8 @@ void configureDistinct() {
 }
 
 void setup() {
-  Serial.begin(9600);
-  Debug.timestampOn();
+  // Serial.begin(9600);
+  // Debug.timestampOn();
   initializeLights();
   configureCommon();
 
@@ -90,7 +90,7 @@ void loop() {
   updateLights();
   if (playingSong) {
     if (sinceStart >= intervalTime) {
-      Debug.print(DBG_INFO, "sinceStart %i", sinceStart);
+      // Debug.print(DBG_INFO, "sinceStart %i", sinceStart);
       sinceStart -= intervalTime;
       bool done = updateSong();
 
