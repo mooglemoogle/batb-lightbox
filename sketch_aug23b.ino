@@ -15,27 +15,12 @@ bool lightShow = false;
 elapsedMillis sinceStart;
 elapsedMillis sinceLastButton;
 
-const int commonPin = 2;
+const int commonPin = 3;
 const int lightsPin = 12;
 const int soundPin = 11;
 const int offPin = 10;
 
-unsigned long firstButton = 0;
-void pressInterrupt() {
-  sleep_disable();
-  power_all_enable();
-  
-  if (firstButton == 0) {
-    firstButton = sinceLastButton;
-  }
-  else if ((sinceLastButton - firstButton) < 100) {
-    return;
-  }
-  sinceLastButton = 0;
-  firstButton = 0;
-
-  configureDistinct();
-
+void checkButtons() {
   if (!digitalRead(offPin)) {
     playingSong = false;
     lightShow = false;
@@ -48,13 +33,32 @@ void pressInterrupt() {
       sinceStart = 0;
     }
   } else if (!digitalRead(lightsPin)) {
-    lightShow = true;
-    if (!playingSong) {
-      startLights(Standalone);
+    if (!lightShow) {
+      lightShow = true;
+      if (!playingSong) {
+        startLights(Standalone);
+      }
     }
   }
+}
 
-  configureCommon();
+unsigned long firstButton = 0;
+void pressInterrupt() {
+  sleep_disable();
+  power_all_enable();
+
+  detachInterrupt(digitalPinToInterrupt(commonPin));
+  
+  if (firstButton == 0) {
+    firstButton = sinceLastButton;
+  }
+  else if ((sinceLastButton - firstButton) < 100) {
+    return;
+  }
+  sinceLastButton = 0;
+  firstButton = 0;
+
+  configureDistinct();
 }
 
 void configureCommon() {
@@ -79,15 +83,16 @@ void setup() {
   // Serial.begin(9600);
   // Debug.timestampOn();
   initializeLights();
-  configureCommon();
-
-  attachInterrupt(digitalPinToInterrupt(commonPin), pressInterrupt, FALLING);
-
+  configureDistinct();
   initializeWaveGen();
+
+  lightShow = true;
+  startLights(WithSong);
 }
 
 void loop() {
   updateLights();
+  checkButtons();
   if (playingSong) {
     if (sinceStart >= intervalTime) {
       // Debug.print(DBG_INFO, "sinceStart %i", sinceStart);
@@ -108,6 +113,9 @@ void loop() {
   } else {
     if (!lightShow) {
       if (sinceLastButton > 5000) {
+        configureCommon();
+        attachInterrupt(digitalPinToInterrupt(commonPin), pressInterrupt, FALLING);
+
         set_sleep_mode(SLEEP_MODE_PWR_DOWN);
         sleep_enable();
         sleep_mode();
