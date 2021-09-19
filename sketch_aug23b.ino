@@ -81,7 +81,10 @@ void configureDistinct() {
 
 void setup() {
   // Serial.begin(9600);
+  // while (!Serial) { ; }
+  // delay(500);
   // Debug.timestampOn();
+  srand(analogRead(0));
   initializeLights();
   configureDistinct();
   initializeWaveGen();

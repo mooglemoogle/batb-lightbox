@@ -42,6 +42,8 @@ void initializeRainbowChase();
 void updateRainbowChase();
 void initializeRainbow();
 void updateRainbow();
+void initializeColorPulse();
+void updateColorPulse();
 void initializeDance();
 void updateDance();
 
@@ -53,8 +55,10 @@ void startLights(LightProgram program) {
         initializeLightsOff();
         break;
     case WithSong:
-        nextPattern = Dance;
-        initializeDance();
+        // nextPattern = Dance;
+        // initializeDance();
+        nextPattern = ColorPulse;
+        initializeColorPulse();
         break;
     case Standalone:
         nextPattern = RainbowChase;
@@ -91,6 +95,8 @@ void updateLights() {
                 initializeRainbow(); break;
             case Dance:
                 initializeDance(); break;
+            case ColorPulse:
+                initializeColorPulse(); break;
             case RainbowChase:
             default:
                 initializeRainbowChase(); break;
@@ -105,8 +111,12 @@ void updateLights() {
         }
         
         strip.show();
-        sinceUpdate -= updateInterval;
+        sinceUpdate = 0;
     }
+}
+
+double bezierBlend(double value) {
+    return (value * value * (3.0 - 2.0 * value));
 }
 
 void applyTransitionLights() {
@@ -126,7 +136,7 @@ void applyTransitionLights() {
         return;
     }
     double timePercent = static_cast<double>(transitionTimer - 0) / static_cast<double>(transitionTime);
-    double valuePercent = (timePercent * timePercent * (3.0 - 2.0 * timePercent));
+    double valuePercent = bezierBlend(timePercent);
     // Debug.print(DBG_INFO, "timePercent %d valuePercent %d", static_cast<long>(timePercent * 100), static_cast<long>(valuePercent * 100));
 
     for (int i = 0; i < LED_COUNT; i++) {
@@ -147,6 +157,8 @@ void applyNormalLights() {
         updateRainbow(); break;
     case Dance:
         updateDance(); break;
+    case ColorPulse:
+        updateColorPulse(); break;
     case RainbowChase:
     default:
         updateRainbowChase(); break;
@@ -203,6 +215,105 @@ void updateRainbow() {
         }
     }
 }
+
+/* Pulse Logic
+Treat light strip as a circle with 16 equally spaced points at (N * TAU)/16
+Each pulse has a hue/sat associated and a position around the circle.
+The pulse has a width, maybe TAU/20?, we calculate each LED's distance from
+the nearest pulse. If it's more than width/2 or less than -width/2, val is 0 for that pulse.
+if it's within, calculate sin(dist) and use that as val with hue and sat for the pulse.
+
+PW * PI
+*/
+const double RADS_PER_LED = TWO_PI/LED_COUNT;
+const double LED_POS[LED_COUNT] = {
+    0, 1 * RADS_PER_LED, 2 * RADS_PER_LED, 3 * RADS_PER_LED, 4 * RADS_PER_LED, 5 * RADS_PER_LED, 6 * RADS_PER_LED, 7 * RADS_PER_LED,
+    8 * RADS_PER_LED, 9 * RADS_PER_LED, 10 * RADS_PER_LED, 11 * RADS_PER_LED, 12 * RADS_PER_LED, 13 * RADS_PER_LED, 14 * RADS_PER_LED, 15 * RADS_PER_LED,
+};
+const double pulseWidth = TWO_PI/8;
+const double halfPulse = pulseWidth/2;
+const double pulseRatio = 1.0 / halfPulse;
+struct Pulse {
+    double hue;
+    double sat;
+    double pos;
+};
+inline double PulseVal(double dist) { return bezierBlend(dist * pulseRatio); }
+
+void updatePulsePositions(Pulse pulses[], int pulseCount, double perSecond, long millis) {
+    double moveAmount = perSecond * millis / 1000.0;
+    // Debug.print(DBG_INFO, "perSecond %d millis %d moveAmount %d", static_cast<uint16_t>(perSecond * 100), static_cast<uint16_t>(millis), static_cast<uint16_t>(moveAmount * 100));
+    for (int i = 0; i < pulseCount; i++) {
+        pulses[i].pos += moveAmount;
+        if (pulses[i].pos > TWO_PI) {
+            pulses[i].pos -= TWO_PI;
+        }
+    }
+}
+
+void updatePulseLEDs(Pulse pulses[], int pulseCount, LightHSV lights[]) {
+    for (int i = 0; i < LED_COUNT; i++) {
+        const double ledPos = LED_POS[i];
+        for (int j = 0; j < pulseCount; j++) {
+            const double pulsePos = pulses[j].pos;
+            double dist = fabs(pulsePos - ledPos);
+            // if (i == 8) {
+            //     Debug.print(DBG_INFO, "pulsePos %d ledPos %d", static_cast<uint16_t>(pulsePos * 1000), static_cast<uint16_t>(ledPos * 1000));
+            //     Debug.print(DBG_INFO, "dist %d", static_cast<uint16_t>((pulsePos - ledPos) * 1000));
+            // }
+            dist = fmin(dist, fabs(dist - TWO_PI));
+            // if (i == 8) {
+            //     Debug.print(DBG_INFO, "dist %d", static_cast<uint16_t>(dist * 1000));
+            //     Debug.print(DBG_INFO, "pulseVal %d", static_cast<uint16_t>(PulseVal(dist) * 1000));
+            // }
+
+            if (dist > halfPulse) {
+                lights[i].val = 0.0;
+            } else {
+                lights[i].hue = pulses[j].hue;
+                lights[i].sat = pulses[j].sat;
+                lights[i].val = PulseVal(halfPulse - dist);
+                break;
+            }
+        }
+    }
+}
+
+inline double getRandom() {
+    return static_cast <double> (rand()) / RAND_MAX;
+}
+
+const double colorPulseRadsPerSecond = PI/2;
+const int colorPulseCount = 4;
+const double colorPulseSpacing = TWO_PI / colorPulseCount;
+double mult;
+Pulse colorPulses[colorPulseCount];
+void initializeColorPulse() {
+    double hue = getRandom();
+    double sat = getRandom() * 0.6 + 0.4;
+    mult = (getRandom() > 0.5) ? 1.0 : -1.0;
+    // Debug.print(DBG_INFO, "hue %d sat %d", rand1, rand2);//static_cast<long>(hue * 65535), static_cast<long>(sat * 255));
+    // Debug.print(DBG_INFO, "hue %d sat %d", static_cast<uint16_t>(hue * 65535), static_cast<uint16_t>(sat * 255));
+    // Debug.print(DBG_INFO, "halfPulse %d", static_cast<uint16_t>(halfPulse * 1000));
+
+    for (int i = 0; i < colorPulseCount; i++) {
+        colorPulses[i].hue = hue;
+        colorPulses[i].sat = sat;
+        colorPulses[i].pos = i * colorPulseSpacing;
+    }
+
+    // Debug.print(DBG_INFO, "hue %d sat %d val %d", static_cast<uint16_t>(transitionLightHSV[8].hue * 65535), static_cast<uint16_t>(transitionLightHSV[8].sat * 255), static_cast<uint16_t>(transitionLightHSV[8].val * 255));
+    updatePulseLEDs(colorPulses, colorPulseCount, transitionLightHSV);
+    // Debug.print(DBG_INFO, "hue %d sat %d val %d", static_cast<uint16_t>(transitionLightHSV[8].hue * 65535), static_cast<uint16_t>(transitionLightHSV[8].sat * 255), static_cast<uint16_t>(transitionLightHSV[8].val * 255));
+}
+
+void updateColorPulse() {
+    updatePulsePositions(colorPulses, colorPulseCount, mult * colorPulseRadsPerSecond, sinceUpdate);
+    // Debug.print(DBG_INFO, "pos %d %d %d %d", static_cast<uint16_t>(colorPulses[0].pos * 100), static_cast<uint16_t>(colorPulses[1].pos * 100), static_cast<uint16_t>(colorPulses[2].pos * 100), static_cast<uint16_t>(colorPulses[3].pos * 100));
+    updatePulseLEDs(colorPulses, colorPulseCount, currentLightHSV);
+    // Debug.print(DBG_INFO, "hue %d sat %d val %d", static_cast<uint16_t>(currentLightHSV[8].hue * 65535), static_cast<uint16_t>(currentLightHSV[8].sat * 255), static_cast<uint16_t>(currentLightHSV[8].val * 255));
+}
+
 
 /*
 LED Locations:
