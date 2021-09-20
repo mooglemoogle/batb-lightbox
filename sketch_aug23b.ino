@@ -14,6 +14,8 @@ bool lightShow = false;
 
 elapsedMillis sinceStart;
 elapsedMillis sinceLastButton;
+elapsedSeconds lightsOn;
+const long offTime = 3600;
 
 const int commonPin = 3;
 const int lightsPin = 12;
@@ -26,19 +28,23 @@ void checkButtons() {
     lightShow = false;
     resetSong();
     stopLights();
+    sinceLastButton = 0;
   } else if (!digitalRead(soundPin)) {
     if (!playingSong) {
       playingSong = true;
       startLights(WithSong);
       sinceStart = 0;
     }
+    sinceLastButton = 0;
   } else if (!digitalRead(lightsPin)) {
     if (!lightShow) {
       lightShow = true;
+      lightsOn = 0;
       if (!playingSong) {
         startLights(Standalone);
       }
     }
+    sinceLastButton = 0;
   }
 }
 
@@ -89,8 +95,8 @@ void setup() {
   configureDistinct();
   initializeWaveGen();
 
-  lightShow = true;
-  startLights(WithSong);
+  // lightShow = true;
+  // startLights(WithSong);
 }
 
 void loop() {
@@ -107,6 +113,7 @@ void loop() {
         sinceLastButton = 0;
         if (lightShow) {
           startLights(Standalone);
+          lightsOn = 0;
         } else {
           stopLights();
         }
@@ -125,6 +132,12 @@ void loop() {
       }
 
       delay(10);
+    } else {
+      if (lightsOn > offTime) {
+        lightShow = false;
+        stopLights();
+        sinceLastButton = 0;
+      }
     }
   }
 }

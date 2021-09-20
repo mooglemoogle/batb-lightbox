@@ -8,7 +8,7 @@
 #define transitionTime 1000
 
 enum LightProgram { WithSong, Standalone, ProgramTransition, LightsOff };
-enum LightPattern { RainbowChase, Rainbow, ColorPulse, RainbowPulse, Dance, PatternTransition };
+enum LightPattern { RainbowChase, Rainbow, ColorPulse, RainbowPulse, ColorSwell, Dance, PatternTransition };
 
 void initializeLights();
 void startLights(LightProgram program);

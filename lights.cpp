@@ -4,7 +4,7 @@
 #include <math.h>
 // #include <Arduino_DebugUtils.h>
 
-const int TIME_PER_PATTERN = 5;
+const int TIME_PER_PATTERN = 60;
 
 Adafruit_NeoPixel strip(LED_COUNT, LED_PIN, NEO_GRB + NEO_KHZ800);
 
@@ -44,6 +44,10 @@ void initializeRainbow();
 void updateRainbow();
 void initializeColorPulse();
 void updateColorPulse();
+void initializeRainbowPulse();
+void updateRainbowPulse();
+void initializeColorSwell();
+void updateColorSwell();
 void initializeDance();
 void updateDance();
 
@@ -55,10 +59,12 @@ void startLights(LightProgram program) {
         initializeLightsOff();
         break;
     case WithSong:
-        // nextPattern = Dance;
-        // initializeDance();
-        nextPattern = ColorPulse;
-        initializeColorPulse();
+        nextPattern = Dance;
+        initializeDance();
+        // nextPattern = RainbowPulse;
+        // initializeRainbowPulse();
+        // nextPattern = ColorSwell;
+        // initializeColorSwell();
         break;
     case Standalone:
         nextPattern = RainbowChase;
@@ -84,7 +90,7 @@ void updateLights() {
     if (sinceUpdate > updateInterval) {
         if (currentProgram == Standalone && sinceChange > TIME_PER_PATTERN) {
             int pattern = currentPattern + 1;
-            if (pattern > Dance) {
+            if (pattern > ColorSwell) {
                 pattern = RainbowChase;
             }
             currentPattern = PatternTransition;
@@ -97,6 +103,10 @@ void updateLights() {
                 initializeDance(); break;
             case ColorPulse:
                 initializeColorPulse(); break;
+            case RainbowPulse:
+                initializeRainbowPulse(); break;
+            case ColorSwell:
+                initializeColorSwell(); break;
             case RainbowChase:
             default:
                 initializeRainbowChase(); break;
@@ -159,6 +169,10 @@ void applyNormalLights() {
         updateDance(); break;
     case ColorPulse:
         updateColorPulse(); break;
+    case RainbowPulse:
+        updateRainbowPulse(); break;
+    case ColorSwell:
+        updateColorSwell(); break;
     case RainbowChase:
     default:
         updateRainbowChase(); break;
@@ -230,7 +244,7 @@ const double LED_POS[LED_COUNT] = {
     0, 1 * RADS_PER_LED, 2 * RADS_PER_LED, 3 * RADS_PER_LED, 4 * RADS_PER_LED, 5 * RADS_PER_LED, 6 * RADS_PER_LED, 7 * RADS_PER_LED,
     8 * RADS_PER_LED, 9 * RADS_PER_LED, 10 * RADS_PER_LED, 11 * RADS_PER_LED, 12 * RADS_PER_LED, 13 * RADS_PER_LED, 14 * RADS_PER_LED, 15 * RADS_PER_LED,
 };
-const double pulseWidth = TWO_PI/8;
+const double pulseWidth = TWO_PI/6;
 const double halfPulse = pulseWidth/2;
 const double pulseRatio = 1.0 / halfPulse;
 struct Pulse {
@@ -247,6 +261,8 @@ void updatePulsePositions(Pulse pulses[], int pulseCount, double perSecond, long
         pulses[i].pos += moveAmount;
         if (pulses[i].pos > TWO_PI) {
             pulses[i].pos -= TWO_PI;
+        } else if (pulses[i].pos < 0) {
+            pulses[i].pos += TWO_PI;
         }
     }
 }
@@ -283,8 +299,8 @@ inline double getRandom() {
     return static_cast <double> (rand()) / RAND_MAX;
 }
 
-const double colorPulseRadsPerSecond = PI/2;
-const int colorPulseCount = 4;
+const double colorPulseRadsPerSecond = PI/5;
+const int colorPulseCount = 3;
 const double colorPulseSpacing = TWO_PI / colorPulseCount;
 double mult;
 Pulse colorPulses[colorPulseCount];
@@ -312,6 +328,60 @@ void updateColorPulse() {
     // Debug.print(DBG_INFO, "pos %d %d %d %d", static_cast<uint16_t>(colorPulses[0].pos * 100), static_cast<uint16_t>(colorPulses[1].pos * 100), static_cast<uint16_t>(colorPulses[2].pos * 100), static_cast<uint16_t>(colorPulses[3].pos * 100));
     updatePulseLEDs(colorPulses, colorPulseCount, currentLightHSV);
     // Debug.print(DBG_INFO, "hue %d sat %d val %d", static_cast<uint16_t>(currentLightHSV[8].hue * 65535), static_cast<uint16_t>(currentLightHSV[8].sat * 255), static_cast<uint16_t>(currentLightHSV[8].val * 255));
+}
+
+const double rainbowPulseRadsPerSecond = PI/5;
+const int rainbowPulseCount = 3;
+const double rainbowPulseSpacing = TWO_PI / rainbowPulseCount;
+const double rainbowPulseColorSpacing = (1.0 / rainbowPulseCount);
+const double rainbowPulseHueMoveRatio = 0.1 / 1000.0;
+Pulse rainbowPulses[rainbowPulseCount];
+void initializeRainbowPulse() {
+    mult = (getRandom() > 0.5) ? 1.0 : -1.0;
+
+    for (int i = 0; i < rainbowPulseCount; i++) {
+        rainbowPulses[i].hue = rainbowPulseColorSpacing * i;
+        rainbowPulses[i].sat = 1.0;
+        rainbowPulses[i].pos = i * rainbowPulseSpacing;
+    }
+
+    // Debug.print(DBG_INFO, "hue %d sat %d val %d", static_cast<uint16_t>(transitionLightHSV[8].hue * 65535), static_cast<uint16_t>(transitionLightHSV[8].sat * 255), static_cast<uint16_t>(transitionLightHSV[8].val * 255));
+    updatePulseLEDs(rainbowPulses, rainbowPulseCount, transitionLightHSV);
+    // Debug.print(DBG_INFO, "hue %d sat %d val %d", static_cast<uint16_t>(transitionLightHSV[8].hue * 65535), static_cast<uint16_t>(transitionLightHSV[8].sat * 255), static_cast<uint16_t>(transitionLightHSV[8].val * 255));
+}
+
+void updateRainbowPulse() {
+    updatePulsePositions(rainbowPulses, rainbowPulseCount, mult * rainbowPulseRadsPerSecond, sinceUpdate);
+    for (int i = 0; i < rainbowPulseCount; i++) {
+        double hue = rainbowPulses[i].hue + (rainbowPulseHueMoveRatio * sinceUpdate);
+        if (hue > 1.0) {
+            hue -= 1.0;
+        }
+        rainbowPulses[i].hue = hue;
+        // Debug.print(DBG_INFO, "hue %d pos %d", static_cast<uint16_t>(rainbowPulses[i].hue * 1000), static_cast<uint16_t>(rainbowPulses[i].pos * 1000));
+    }
+    updatePulseLEDs(rainbowPulses, rainbowPulseCount, currentLightHSV);
+}
+
+const double colorSwellBaseVal = 0.65;
+const double colorSwellValDistance = 1.0 - colorSwellBaseVal;
+const double swellsPerSecond = 0.1;
+const double swellsPerSecondRatio = (swellsPerSecond * TWO_PI) / 1000.0;
+void initializeColorSwell() {
+    double hue = getRandom();
+    double sat = getRandom() * 0.6 + 0.4;
+    for (int i = 0; i < LED_COUNT; i++) {
+        transitionLightHSV[i].hue = hue;
+        transitionLightHSV[i].sat = sat;
+        transitionLightHSV[i].val = colorSwellBaseVal;
+    }
+}
+
+void updateColorSwell() {
+    double currentVal = colorSwellBaseVal + (sin(millisSinceChange * swellsPerSecondRatio) * colorSwellValDistance);
+    for (int i = 0; i < LED_COUNT; i++) {
+        currentLightHSV[i].val = currentVal;
+    }
 }
 
 
